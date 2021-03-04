@@ -1,0 +1,139 @@
+server:
+  port: 10010
+  tomcat:
+    max-threads: 400 # 最大工作线程数，默认200（4核8g内存，线程数800，一般是核数*200。操作系统做线程之间的切换调度是有系统开销的，所以不是越多越好。）
+    min-spare-threads: 100 # 最小工作空闲线程数，默认10
+    accept-count: 1000 # 等待队列长度，默认100
+
+spring:
+  application:
+    name: api-gateway
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://127.0.0.1:10086/eureka
+    registry-fetch-interval-seconds: 5
+  instance:
+    prefer-ip-address: true
+#    ip-address: 127.0.0.1
+#    instance-id: ${spring.application.name}:${server.port}
+
+#  关于Zuul的限流
+#  用了origin在redis的key中会有ip地址（配了origin,url,user）
+#   用：api-gateway:item-service:192.168.1.10:/goods/getOnSaleProduct:anonymous
+#   不用： api-gateway:item-service:/goods/getOnSaleProduct:anonymous
+#  用了user在redis的key中会有user name - 如anonymous (配了url,user)
+#   用: api-gateway:item-service:/goods/getOnSaleProduct:anonymous
+#   不用： api-gateway:item-service:/goods/getOnSaleProduct
+zuul:
+  ratelimit:
+    enabled: true
+    repository: REDIS
+    default-policy-list: #全局限流
+      - limit: 10 #optional - request number limit per refresh interval window
+        refresh-interval: 60 #default value (in seconds) ＃60秒内超过 limit 次就限流
+        type: #optional
+          #- origin #origin是根据IP限流
+          - url
+#          - user
+#    policy-list: #局部限流
+#      order-service:
+#        - limit: 5 #optional - request number limit per refresh interval window
+#          #quota: 1000 #optional - request time limit per refresh interval window (in seconds)
+#          refresh-interval: 60 #default value (in seconds)
+#          type: #optional
+#            - origin
+#            - url
+#            - user
+  SendErrorFilter: # 对于自定义error filter，先要禁用Zuul默认的异常处理Filter
+    error:
+      disabled: true
+
+  prefix: /api # 添加路由前缀 retryable: true
+  add-host-header: true #携带请求本身的head信息
+  sensitive-headers:  #敏感头过滤, 配置禁止使用的头信息，这里设置为null,否则set-cookie无效
+  routes:
+    item-service:
+      path: /item-service/** # /*不匹配子路径（匹配/item-service/a /item-service/b）, /**不匹配子路径（匹配/item-service/a/a /item-service/b/b）
+      #url: http://127.0.0.1:8081
+      serviceId: item-service
+    upload-service:
+      path: /upload/**
+      serviceId: upload-service #eureka中的微服务serviceId
+      strip-prefix: false
+    search-service:
+      path: /search/**
+      serviceId: search-service #eureka中的微服务serviceId
+      strip-prefix: false
+    page-service:
+      path: /page/**
+      serviceId: page-service #eureka中的微服务serviceId
+      strip-prefix: false
+    user-service:
+      path: /user/**
+      serviceId: user-service #eureka中的微服务serviceId
+      strip-prefix: false
+    auth-service:
+      path: /auth/**
+      serviceId: auth-service #eureka中的微服务serviceId
+      strip-prefix: false
+    cart-service:
+      path: /cart/**
+      serviceId: cart-service #eureka中的微服务serviceId
+      strip-prefix: false
+    order-service:
+      path: /order/**
+      serviceId: order-service #eureka中的微服务serviceId
+      strip-prefix: false
+  host:
+    max-total-connections: 2000 #http客户端连接池最大连接，默认是200， （ HttpClient 总连接数 ）
+    max-per-route-connections: 500 #每个route可用的最大连接数，默认值是20 （ HttpClient 单个服务（即服务发现中的每个服务）连接数 ）
+  semaphore:
+    max-semaphores: 2000 #指的是1秒时间窗口内的事务/查询/请求, 默认值是100
+  #以下2个配置解决了 - 解决Hystrix Dashboard显示中Thread pools一直处于Loading状态
+  ribbon-isolation-strategy: thread #设置Hystrix隔离策略为线程池
+  thread-pool:
+    use-separate-thread-pools: true #每个路由使用独立的线程池
+
+
+#zuul:
+#  prefix: /api # 添加路由前缀 retryable: true
+#  routes:
+#    item-service: # 这里是路由id,随意写
+#      path: /item/** # 这里是映射路径
+##      serviceId: item-service # 指定服务名称
+#      url: http://127.0.0.1:8081／ # 映射路径对应的实际url地址
+
+
+
+#暴露全部的监控信息
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+
+feign:
+  hystrix:
+    enabled: true
+
+leyou:
+  jwt:
+    pubKeyPath: /Users/davidzhang/Documents/dockerworkspace/rsa/rsa.pub # 公钥地址
+    cookieName: LY_TOKEN
+  filter:
+    allowPaths:
+      - /api/auth
+      - /api/search
+      - /api/user/login
+      - /api/user/register
+      - /api/user/code
+      - /api/user/query
+      - /api/item-service
+      - /api/page
+
+
+
+
+
